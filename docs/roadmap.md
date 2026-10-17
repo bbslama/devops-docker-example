@@ -7,9 +7,9 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 | 0 | Baseline and repository audit | COMPLETE (local evidence) |
 | 1 | Minimal application baseline | COMPLETE (local evidence) |
 | 2 | Production-oriented containerization | COMPLETE (CI + local runtime evidence; DHI blocked with fallback) |
-| 3 | Continuous integration | PARTIAL (local validation complete; Actions run blocked until on `main`) |
-| 4 | Image publication | PARTIAL |
-| 5 | Deployment acceptance | PARTIAL |
+| 3 | Continuous integration | COMPLETE (CI evidence) |
+| 4 | Image publication | COMPLETE (registry evidence) |
+| 5 | Deployment acceptance | COMPLETE (CI + local pull evidence) |
 | 6 | Pipeline hardening and promotion | PLANNED |
 | 7 | AWS account readiness | PLANNED |
 | 8 | Terraform foundation | PLANNED |
@@ -54,7 +54,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 - **Effort / risks:** 0.5–1 day. Risks: local network/proxy restrictions, base-image runtime differences, native dependencies.
 - **Deferred:** mandatory DHI where no practical compatible image exists, Buildpacks, Kubernetes.
 
-## Milestone 3 — Continuous integration (PARTIAL)
+## Milestone 3 — Continuous integration (COMPLETE)
 
 - **Objective / why:** fail changes early with parallel backend/frontend checks before artifact publication.
 - **Dependencies:** M1; M2 for later image jobs but not test jobs.
@@ -65,7 +65,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 - **Effort / risks:** 0.5 day. Risks: runner tool versions, action permissions, integration test Docker availability.
 - **Deferred:** AWS deployment, browser E2E, Hadolint.
 
-## Milestone 4 — Image publication (PARTIAL)
+## Milestone 4 — Image publication (COMPLETE)
 
 - **Objective / why:** publish the same tested frontend/backend build under one discoverable release version.
 - **Dependencies:** M2 and M3; Docker Hub ownership, repository and credentials must be explicitly verified.
@@ -76,7 +76,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 - **Effort / risks:** 0.5–1 day. Risks: missing Docker Hub configuration, registry policy/rate limits, tag collision on Actions re-run, Trivy database access.
 - **Deferred:** database image publication, AWS ECR migration, semantic release design until needed.
 
-## Milestone 5 — Deployment acceptance (PARTIAL)
+## Milestone 5 — Deployment acceptance (COMPLETE)
 
 - **Objective / why:** verify the exact published artifact works in a temporary multi-container runtime, separately from builds.
 - **Dependencies:** M4 and exact pullable release.

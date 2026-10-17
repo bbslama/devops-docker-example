@@ -14,11 +14,11 @@ This ledger deliberately distinguishes source/configuration from verified behavi
 | Frontend | COMPLETE locally | Angular 22.2.3 with reactive form and notes service. Recorded `npm run quality`: ESLint passed, 2 Vitest tests passed, production build passed. |
 | Dockerfiles | COMPLETE (CI + local evidence) | Both committed Dockerfiles build from clean source on GitHub-hosted runners (run 39032952679). Backend runs as `10001:10001`, frontend as `101` (nginx-unprivileged); both expose 8080 and declare HEALTHCHECKs. Local builds on the personal machine are environment-blocked (see M2 log). |
 | Local Compose | PARTIAL | `compose.yaml` config parses; its `build:` path is exercised indirectly by the same Dockerfiles. Local `up --build` is blocked on this machine by the corporate proxy. |
-| Release Compose | COMPLETE (CI + local, with locally built images) | `deploy/compose.yaml` has no build directives; started healthy with CI-built images on the runner and locally (`--pull never` for app images). Docker Hub pulls are not verified. |
+| Release Compose | COMPLETE (CI + local) | `deploy/compose.yaml` has no build directives. Pulled exact `bbslama/devops-example-*:1.0.2` on the runner (run 39035578572) and anonymously on the personal machine; all services healthy and smoke PASS in both. |
 | Curl acceptance | COMPLETE (CI + local in-network) | `scripts/smoke-test.sh` now also asserts the Angular shell (`<app-root`). PASS on the runner and locally from a container on the Compose network. Host→container traffic (published port and container IP) times out on the personal machine. |
-| CI workflow | PARTIAL (local validation complete; remote run BLOCKED) | `.github/workflows/ci-cd.yml` defines parallel backend/frontend test jobs that gate build/scan/publish and temporary acceptance. actionlint 1.7.12 PASS. No `ci-cd.yml` Actions run exists: it is not on `main`, so `workflow_dispatch` returns 404 and branch pushes do not trigger it. |
-| Docker Hub | BLOCKED / unverified | Workflow expects repository variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN`; configuration, login, repositories, image tags, and anonymous pulls are not confirmed. |
-| Trivy | PARTIAL | Workflow is configured to scan both built application images for fixable critical findings. Remote scan result and registry publication are unverified. |
+| CI workflow | COMPLETE (CI evidence) | `ci-cd.yml` on `main`: run 39034457876 (#1) showed parallel test jobs passing and a Trivy failure blocking publish with `deploy` skipped; run 39035578572 (#2) passed all four jobs; `backend-test-reports` artifact uploaded. actionlint 1.7.12 PASS. |
+| Docker Hub | COMPLETE (registry evidence) | Variable `DOCKERHUB_USERNAME=bbslama` and secret `DOCKERHUB_TOKEN` configured 2026-10-17 (value never printed). Public repos `bbslama/devops-example-backend` and `-frontend` hold `1.0.2` (+ `latest` alias at the same digest); `1.0.1` was never published (404). |
+| Trivy | COMPLETE (CI evidence) | Run #1 blocked on 3 fixable CRITICAL Tomcat 11.0.24 CVEs; fixed by `tomcat.version` 11.0.27 override; run #2 scan PASS for both `1.0.2` images. |
 | DHI | BLOCKED (documented fallback) | `dhi.io` returns 401 for anonymous token/tag requests (2026-10-17); DHI pulls require an authenticated Docker account, which is not configured locally or in GitHub, and would also break the anonymous-pull release deploy. Maintained upstream fallbacks are used: `maven:3.9.16-eclipse-temurin-25`, `eclipse-temurin:25-jre`, `node:24.16.0-bookworm-slim`, `nginxinc/nginx-unprivileged:1.30.1-alpine`, `postgres:17.7-alpine` (tags verified on Docker Hub, amd64/arm64 available). |
 | AWS/Terraform/ECS | PLANNED | No Terraform, AWS deployment, or cloud resources are present. ECS Fargate, not EKS, is the target. |
 | Observability and centralized logging | PLANNED | No Prometheus/Grafana dashboards, alerting, or centralized logging system is present. Actuator health/info alone is not full observability. |
@@ -36,24 +36,17 @@ These local results were recorded during implementation work on the pre-document
 - Host access to published loopback port timed out under the environment's proxy/network settings. This does not establish that a GitHub-hosted deployment fails.
 - A dedicated Actions YAML linter was unavailable during that recorded validation.
 
-## External state: not asserted
+## External state
 
-No current Actions run, run URL, Docker Hub image digest/tag, or AWS environment has been independently verified here. In particular, do not infer that:
+Verified on 2026-10-17 (see milestone log): `ci-cd.yml` run 39035578572 on `main` passed tests, Trivy, publication of `1.0.2`, and temporary acceptance; Docker Hub `bbslama/devops-example-{backend,frontend}:1.0.2` digests were inspected and pulled anonymously. Still **not** verified or present: any persistent deployment, AWS access/OIDC/account permissions/region/budget, or tag immutability.
 
-- a main-branch or manually dispatched Actions workflow has completed;
-- the Docker Hub variable/token are configured or valid;
-- application images have been published and are pullable;
-- the pull-only deployment succeeded on GitHub Actions;
-- the smoke test ran remotely or passed;
-- AWS access, OIDC, account permissions, region, or budget are ready.
-
-The workflow listens for pushes to `main` and `workflow_dispatch`; `devops-pipeline` pushes alone do not match the push trigger. Do not dispatch it during planning.
+`ci-cd.yml` listens for pushes to `main` and `workflow_dispatch` (dispatch works only because the file is now on `main`); every push to `main`, including documentation-only changes, publishes a new `1.0.N`. `container-validation.yml` covers non-`main` branch pushes without publishing.
 
 ## Findings to carry forward
 
 1. **Numbered tags are not guaranteed immutable.** The workflow derives `1.0.N` from `github.run_number`; rerunning that run reuses the number and can push over the same tag. `latest` is mutable too. Deployment selects the numbered tag, but tag immutability and digest pinning are not enforced. This is a future pipeline-hardening item; implementation was not changed here.
-2. **Backend image validation gap.** The committed Dockerfile build was not validated in the prior restricted build-network environment. A temporary runtime-only image demonstrated the JAR/Compose behavior but does not substitute for a build of `backend/Dockerfile`.
-3. **External validation absent.** CI, registry, and remote acceptance state require evidence from GitHub Actions and Docker Hub.
+2. **Local image builds are environment-blocked.** Both Dockerfiles build on GitHub-hosted runners; local builds on the personal machine need an approved way to trust the corporate TLS-inspection CA.
+3. **External validation obtained for 1.0.2.** CI, registry, and remote acceptance evidence is recorded in the milestone log; re-verify for each new release.
 4. **DHI fallback remains.** Catalog existence is not evidence of compatible tags, access, architecture, or runtime compatibility.
 5. **Host-port access was environment-limited.** Compose-network traffic passed; host loopback requests timed out due the local proxy/network context. Recheck safely on the unrestricted personal machine.
 6. **Personal-machine readiness is not established.** Inspect relevant toolchain, identity, and proxy configuration there without disclosing values or changing settings absent explicit approval.
@@ -94,6 +87,20 @@ See the latest entry in the milestone log below. (Milestone 0 was completed on t
 - **CI:** BLOCKED — `gh workflow run ci-cd.yml --ref devops-pipeline` returned `HTTP 404: workflow ci-cd.yml not found on the default branch`; `main` (`d80f0d3`) does not contain the workflow and was not modified. The changed Docker/artifact actions were exercised by `Container build validation` run https://github.com/bbslama/devops-docker-example/actions/runs/39033634100 (commit `7520759`): PASS, no Node 20 deprecation annotations.
 - **Remaining issues:** a `ci-cd.yml` run needs the branch merged to `main` (user decision; push to `main` triggers the full pipeline); publication additionally needs `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` configured — otherwise the run will show test jobs passing and `build-publish` failing at the precheck with `deploy` skipped.
 - **Next step:** user action — configure Docker Hub variable/secret, then merge `devops-pipeline` to `main` to obtain M3 CI evidence and M4/M5 publication/acceptance evidence.
+
+### 2026-10-17 — Milestones 3–5: CI, image publication, and deployment acceptance (remote evidence)
+- **Authorization/config:** user explicitly authorized setting `DOCKERHUB_USERNAME=bbslama` and the `DOCKERHUB_TOKEN` secret (set via stdin; value never printed or committed) and merging to `main`. The token was shared in a chat session; rotating it in Docker Hub is recommended.
+- **Merges:** PR #1 (`devops-pipeline` → `main`, merge commit `59aab29`) and PR #6 (Tomcat fix). Merging also activated Dependabot on `main`; PRs #2–#5 were opened by Dependabot and left untouched.
+- **Run #1 — FAIL (gate worked):** https://github.com/bbslama/devops-docker-example/actions/runs/39034457876 — backend and frontend test jobs passed in parallel; Docker Hub precheck and login passed; Trivy found 3 fixable CRITICAL CVEs in `tomcat-embed-core` 11.0.24 (CVE-2026-65182, CVE-2026-65905, CVE-2026-68525; fixed in 11.0.25) in the backend image, so nothing was pushed and `deploy` was skipped. Docker Hub confirms no `1.0.1` tags (HTTP 404).
+- **Fix:** `backend/pom.xml` overrides `tomcat.version` to 11.0.27 (latest 11.0.x; Spring Boot 4.1.1 is the newest 4.1 release and still manages 11.0.24). Local `clean verify` PASS (4 + 1 tests, 0 Checkstyle violations; jar contains `tomcat-embed-*-11.0.27`). Host Maven needed a temporary proxy-only `settings.xml` under `/tmp`, deleted after use. Branch validation run 39035365877 PASS.
+- **Run #2 — PASS:** https://github.com/bbslama/devops-docker-example/actions/runs/39035578572 (push to `main`, version `1.0.2`): backend tests 58s and frontend 16s in parallel; Trivy PASS for both images; published:
+  - `bbslama/devops-example-backend:1.0.2` → `sha256:5092984aab80e3bc1e0c7787c92ffd7139630dd7a69445311297953fbd6e63a8`
+  - `bbslama/devops-example-frontend:1.0.2` → `sha256:5dbf3905899d4cb594b8c975e06dd971161dfb9016623246fece4441b815506e`
+  - `latest` aliases point to the same digests (Docker Hub API).
+  - Acceptance project `devops-example-acceptance-39035578572`: pulled exact `1.0.2` images (no build), database/backend/frontend Healthy, smoke `PASS: Angular frontend, proxied backend health, and note create/read/delete`, containers/network/volume removed by the `always()` teardown.
+- **Local registry check:** PASS — with an empty temporary `DOCKER_CONFIG` (anonymous), `docker compose -f deploy/compose.yaml pull` fetched `1.0.2` with RepoDigests matching the digests above; project `devops-example-m5-local` started healthy; in-network smoke PASS; `down --volumes --remove-orphans` removed only that project.
+- **Remaining issues:** numbered tags remain mutable on re-run and `latest` moves (M6); deploy job relies on public repositories; `ubuntu-latest` migrates to Ubuntu 26 from 2026-10-19; the Tomcat override must be removed once Spring Boot manages ≥ 11.0.25; Dependabot PRs #2–#5 need review (e.g. Checkstyle 10 → 14 and TypeScript 6 → 7 are major bumps).
+- **Next step:** Milestone 6 — pipeline hardening and promotion.
 
 ## Milestone update template
 
