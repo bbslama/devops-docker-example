@@ -7,7 +7,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 | 0 | Baseline and repository audit | COMPLETE (local evidence) |
 | 1 | Minimal application baseline | COMPLETE (local evidence) |
 | 2 | Production-oriented containerization | COMPLETE (CI + local runtime evidence; DHI blocked with fallback) |
-| 3 | Continuous integration | PARTIAL |
+| 3 | Continuous integration | PARTIAL (local validation complete; Actions run blocked until on `main`) |
 | 4 | Image publication | PARTIAL |
 | 5 | Deployment acceptance | PARTIAL |
 | 6 | Pipeline hardening and promotion | PLANNED |
