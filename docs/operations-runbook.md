@@ -61,7 +61,22 @@ scripts/smoke-test.sh
 docker compose --env-file deploy/.env -f compose.yaml logs --no-color
 ```
 
-Smoke acceptance covers the frontend, backend health through Nginx, and note create/read/delete. If the host HTTP proxy intercepts loopback, inspect bypass behavior safely or run the smoke script from an approved container in the Compose network; do not conclude that remote deployment behaves the same.
+Smoke acceptance covers the Angular frontend shell, backend health through Nginx, and note create/read/delete. If the host HTTP proxy intercepts loopback, inspect bypass behavior safely or run the smoke script from an approved container in the Compose network; do not conclude that remote deployment behaves the same.
+
+### Validate branch-built images when local builds are blocked
+
+If local Docker builds cannot reach registries (for example behind a TLS-intercepting proxy), push the branch and use the `Container build validation` workflow run, then load its image artifact and smoke-test inside the Compose network:
+
+```sh
+gh run download <run-id> -n app-images-<sha> -D /tmp/app-images
+docker load -i /tmp/app-images/images.tar.gz
+export DOCKERHUB_USERNAME=local APP_VERSION=ci-<sha> POSTGRES_DB=notes POSTGRES_USER=notes
+export POSTGRES_PASSWORD=<disposable> COMPOSE_PROJECT_NAME=devops-example-local-check
+docker compose -f deploy/compose.yaml up -d --pull missing --wait
+docker run --rm --network devops-example-local-check_application -e BASE_URL=http://frontend:8080 \
+  -v "$PWD/scripts/smoke-test.sh:/smoke.sh:ro" --entrypoint sh curlimages/curl:8.17.0 /smoke.sh
+docker compose -f deploy/compose.yaml down --volumes --remove-orphans
+```
 
 ## Status, logs, and cleanup
 

@@ -6,7 +6,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 | --- | --- | --- |
 | 0 | Baseline and repository audit | COMPLETE (local evidence) |
 | 1 | Minimal application baseline | COMPLETE (local evidence) |
-| 2 | Production-oriented containerization | PARTIAL |
+| 2 | Production-oriented containerization | COMPLETE (CI + local runtime evidence; DHI blocked with fallback) |
 | 3 | Continuous integration | PARTIAL |
 | 4 | Image publication | PARTIAL |
 | 5 | Deployment acceptance | PARTIAL |
@@ -43,7 +43,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 - **Effort / risks:** 1–2 days. Risks: Java/Spring version compatibility and Docker-dependent integration test.
 - **Deferred:** product features, browser E2E, production-scale design.
 
-## Milestone 2 — Production-oriented containerization (PARTIAL)
+## Milestone 2 — Production-oriented containerization (COMPLETE; DHI blocked with documented fallback)
 
 - **Objective / why:** package frontend/backend reproducibly with reasonable runtime defaults and a maintained PostgreSQL image.
 - **Dependencies:** M1.

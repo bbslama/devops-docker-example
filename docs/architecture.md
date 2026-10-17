@@ -33,6 +33,8 @@ flowchart LR
 
 `.github/workflows/ci-cd.yml` also supports manual dispatch. Its automatic push trigger is `main` only. Backend and frontend test jobs gate image build/publish. Trivy is configured to fail on fixable critical findings; an unavailable vulnerability database blocks publication. Deployment consumes a version output and does not select `latest`.
 
+`.github/workflows/container-validation.yml` runs on non-`main` branch pushes that touch app, Compose, or smoke-test paths (and on manual dispatch). It builds both Dockerfiles, checks non-root users and HEALTHCHECKs, runs the pull-only release Compose file with the locally built images, smoke-tests, tears down, and uploads the images as a short-lived artifact. It publishes nothing.
+
 The version format is initially `1.0.${{ github.run_number }}`. **The implementation does not guarantee immutability:** Actions re-runs reuse the run number and may republish that version tag. Do not claim immutable artifact promotion; Milestone 6 tracks hardening.
 
 ## 3. Docker Hub artifact flow
