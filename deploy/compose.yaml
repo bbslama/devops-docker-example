@@ -1,0 +1,56 @@
+services:
+  database:
+    image: postgres:17.7-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - notes_data:/var/lib/postgresql/data
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}/devops-example-backend:${APP_VERSION:?Set APP_VERSION}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/${POSTGRES_DB:?Set POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 6
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}/devops-example-frontend:${APP_VERSION:?Set APP_VERSION}
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -Y off -T 3 -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+networks:
+  application:
+    driver: bridge
+
+volumes:
+  notes_data:
