@@ -28,6 +28,8 @@ The backend is a Spring Web/JPA/Validation API with Flyway migrations and Actuat
 | `deploy/compose.yaml` | Pull-only versioned release deployment |
 | `scripts/smoke-test.sh` | Curl-based deployment acceptance check |
 | `.github/workflows/ci-cd.yml` | Test, publish, temporary deploy and smoke-test pipeline |
+| `docs/` | Architecture, operating instructions, and verified current status |
+| `.github/skills/` | Repository-specific Agent Skills for app and delivery work |
 
 ## Local development and checks
 
@@ -82,7 +84,7 @@ Each run uses the shared version `1.0.${{ github.run_number }}` for both images:
 - `${DOCKERHUB_USERNAME}/devops-example-backend:1.0.N`
 - `${DOCKERHUB_USERNAME}/devops-example-frontend:1.0.N`
 
-The workflow also publishes `latest` convenience aliases. Numbered tags are the immutable deployment versions; `latest` is never used by the deploy job. The workflow records its generated version in the run summary, builds using Docker Buildx and GitHub Actions cache, and scans both built images with Trivy before publishing. Trivy ignores unfixed findings and fails on fixable critical vulnerabilities; a vulnerability-database download failure is reported as **BLOCKED** and prevents publication rather than being passed.
+The workflow also publishes `latest` convenience aliases. Deployment uses the numbered tag, never `latest`; however, a GitHub Actions re-run reuses the same run number and can republish that numbered tag, so the workflow does not enforce immutable tags. The workflow records its generated version in the run summary, builds using Docker Buildx and GitHub Actions cache, and scans both built images with Trivy before publishing. Trivy ignores unfixed findings and fails on fixable critical vulnerabilities; a vulnerability-database download failure is reported as **BLOCKED** and prevents publication rather than being passed.
 
 Configure these repository settings before a publish run:
 
@@ -108,3 +110,5 @@ The Compose health checks wait for PostgreSQL, the Actuator backend endpoint, an
 ## Deferred
 
 AWS, Terraform, persistent cloud deployment, Kubernetes, monitoring, and centralized logging are intentionally out of scope.
+
+For a component and request-flow overview, see [Architecture](docs/architecture.md). For setup, deployment, and cleanup steps, see [Operations](docs/operations.md). For what has and has not been verified at the pushed baseline, see [Current state](docs/current-state.md).
