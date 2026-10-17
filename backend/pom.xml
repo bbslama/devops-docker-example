@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>25</java.version>
+        <!-- Override Spring Boot 4.1.1 managed Tomcat 11.0.24: CVE-2026-65182, CVE-2026-65905, CVE-2026-68525 fixed in 11.0.25. Remove once Boot manages >= 11.0.25. -->
+        <tomcat.version>11.0.27</tomcat.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <jacoco.version>0.8.14</jacoco.version>
         <checkstyle.version>10.26.1</checkstyle.version>
