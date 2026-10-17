@@ -5,6 +5,10 @@ description: Use when changing or documenting the Notes API, persistence, Angula
 
 # Notes workload
 
+## Start and prerequisites
+
+Before work, inspect `AGENTS.md`, `docs/current-state.md`, the requested roadmap milestone, and the relevant source/tests below. Confirm whether the user requested planning, implementation, or validation and keep changes to that scope.
+
 ## Source of truth
 
 - Backend code and tests are under `backend/src/`; Maven configuration and quality checks are in `backend/pom.xml`.
@@ -27,4 +31,14 @@ cd backend && ./mvnw --batch-mode --no-transfer-progress clean verify
 cd frontend && npm ci && npm run quality
 ```
 
-The backend integration test needs Docker for PostgreSQL Testcontainers. Report environment failures separately from application failures; never disable or weaken the integration test just to make a local run green.
+The backend integration test needs Docker for PostgreSQL Testcontainers. Report environment failures separately from application failures; never disable or weaken the integration test just to make a local run green. Validate the relevant tests and API contract, inspect the diff, and update current state only after actual evidence.
+
+## Safety and stop conditions
+
+Do not expand the app into unrelated features, add browser E2E, change migrations already released, expose secrets, or change container/workflow/cloud concerns under this skill. Stop if requirements conflict with API contract or involve data loss; ask before widening scope.
+
+See [architecture](../../../docs/architecture.md), [definition of done](../../../docs/definition-of-done.md), and [roadmap](../../../docs/roadmap.md).
+
+## Invocation example
+
+Use the /notes-workload skill to change one Notes API behavior and its focused tests.

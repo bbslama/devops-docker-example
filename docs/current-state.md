@@ -1,49 +1,75 @@
-# Current state at the pushed baseline
+# Current state and evidence ledger
 
-**Baseline:** `bbslama/devops-docker-example`, branch `devops-pipeline`, commit `308088a40a1f679d6d059a3b7cf5af8c0bc1533f`.
+**Inspected:** 2026-10-17. **Repository:** `bbslama/devops-docker-example`. **Branch:** `devops-pipeline`. **HEAD:** `79dbd2ceb1644fd9f5007c26c0af70bf94a7f4b9` (`add skills`), fetched and equal to `origin/devops-pipeline`. It descends from implementation commit `308088a40a1f679d6d059a3b7cf5af8c0bc1533f`; `main`/`origin/main` was `d80f0d3` (`initial app setup`) at inspection. Worktree was clean before the present documentation changes. No repository-local Git author name/email was configured.
 
-The branch was fetched and verified at this baseline before documentation work. This file records the distinction between repository configuration, local validation evidence, and external delivery evidence. A configured workflow is not evidence that it has run successfully.
+This ledger deliberately distinguishes source/configuration from verified behavior. A file or workflow existing does not prove it ran, artifacts exist, or an environment is deployed. See [roadmap](roadmap.md) for milestone classifications and [definition of done](definition-of-done.md) for evidence needed to advance statuses.
 
-## Repository implementation
+## Repository contents and classifications
 
-The baseline contains:
+| Area | Status | Evidence in repository / validation |
+| --- | --- | --- |
+| Notes API | COMPLETE | Spring Boot 4.1.1, Java 25, JPA, validation, Actuator, Flyway; CRUD endpoints and exception handling under `backend/src/main/java/com/example/notes/`. |
+| Database schema | COMPLETE | PostgreSQL 17.7; `backend/src/main/resources/db/migration/V1__create_notes.sql`; Hibernate schema mode is validate. |
+| Backend tests | COMPLETE locally | Service/controller tests plus PostgreSQL Testcontainers integration test. Recorded `./mvnw clean verify`: 5 total tests passed, Checkstyle 0 violations, JaCoCo report generated. |
+| Frontend | COMPLETE locally | Angular 22.2.3 with reactive form and notes service. Recorded `npm run quality`: ESLint passed, 2 Vitest tests passed, production build passed. |
+| Dockerfiles | PARTIAL | Multi-stage backend/frontend Dockerfiles and ignore files exist. Frontend Dockerfile built locally; backend Dockerfile build was blocked resolving Maven Central from the container build environment. |
+| Local Compose | PARTIAL | `compose.yaml` builds backend/frontend and runs PostgreSQL. Config parsed. A local Compose-network smoke test passed using a temporary runtime-only backend image, not the committed backend Dockerfile. |
+| Release Compose | PARTIAL | `deploy/compose.yaml` uses exact versioned image references and has no build directives; config parsed. External images/pull deployment are not verified. |
+| Curl acceptance | PARTIAL | `scripts/smoke-test.sh` checks frontend, proxied health, and create/list/delete. Passed from the temporary Compose network. Host-published loopback requests timed out in the validating environment's proxy/network setup. |
+| CI workflow | PARTIAL | `.github/workflows/ci-cd.yml` defines parallel test jobs, build/scan/publish, temporary release Compose deployment, smoke test and cleanup. No Actions execution evidence was inspected or asserted. |
+| Docker Hub | BLOCKED / unverified | Workflow expects repository variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN`; configuration, login, repositories, image tags, and anonymous pulls are not confirmed. |
+| Trivy | PARTIAL | Workflow is configured to scan both built application images for fixable critical findings. Remote scan result and registry publication are unverified. |
+| DHI | BLOCKED / unverified | Current files use explicit upstream Maven/Temurin, Node, Nginx, and PostgreSQL images. No compatible accessible DHI tag was verified. |
+| AWS/Terraform/ECS | PLANNED | No Terraform, AWS deployment, or cloud resources are present. ECS Fargate, not EKS, is the target. |
+| Observability and centralized logging | PLANNED | No Prometheus/Grafana dashboards, alerting, or centralized logging system is present. Actuator health/info alone is not full observability. |
+| Local Kubernetes | OPTIONAL | Not present and not a prerequisite for ECS. |
 
-- A Spring Boot Notes API, PostgreSQL persistence, Flyway schema migration, health/info endpoints, and backend tests.
-- An Angular Notes UI and Nginx reverse proxy.
-- A local build-and-run Compose file and a separate pull-only `deploy/compose.yaml`.
-- A GitHub Actions workflow configured for pushes to `main` and manual dispatch. It tests both apps, builds and scans images, pushes Docker Hub tags, then pulls a versioned release Compose stack for temporary acceptance.
-- A curl smoke test that checks frontend availability and backend health, then creates, reads, and deletes a note.
+## Validation record
 
-## Validation evidence
+These local results were recorded during implementation work on the pre-documentation state. They are not GitHub-hosted CI, Docker Hub, or cloud evidence:
 
-| Area | Evidence/status |
-| --- | --- |
-| Backend quality | Local `clean verify` completed successfully: 4 unit/controller tests and 1 PostgreSQL Testcontainers integration test passed; Checkstyle reported 0 violations and JaCoCo generated a report. |
-| Frontend quality | Local `npm run quality` completed: ESLint passed, 2 Vitest tests passed, and the production build completed. |
-| Frontend image | The frontend Dockerfile built locally. |
-| Compose definitions | Both Compose configurations parsed; the release configuration contains no `build:` directives. |
-| Temporary Compose acceptance | Health checks and the curl CRUD smoke test passed on the Compose network using the verified backend JAR in a temporary runtime-only image. This did **not** validate the production backend Dockerfile build. |
-| Backend Dockerfile | A local Dockerfile build could not resolve Maven Central from the build container in the environment used for validation. No TLS bypass was used. |
-| Host-published frontend port | Host curl requests timed out in the local proxy/network setup. The smoke test passed from the Compose network; host-port reachability in that environment was not established. |
-| Workflow lint | No dedicated Actions workflow linter was available during the recorded local checks. |
+- Backend `clean verify`: 4 unit/controller tests and 1 PostgreSQL Testcontainers test passed; Checkstyle reported no violations; JaCoCo report generated.
+- Frontend `npm ci` and `npm run quality`: lint passed, 2 tests passed, production build passed.
+- Frontend Dockerfile build passed. Backend Dockerfile build could not resolve Maven Central from its build container; TLS verification was not bypassed.
+- Local and release Compose configurations parsed; release Compose was confirmed to contain no `build` directives.
+- Temporary Compose health checks and curl CRUD smoke test passed inside the Compose network using a temporary runtime-only backend image.
+- Host access to published loopback port timed out under the environment's proxy/network settings. This does not establish that a GitHub-hosted deployment fails.
+- A dedicated Actions YAML linter was unavailable during that recorded validation.
 
-These are local validation results only. They are not GitHub-hosted Actions results.
+## External state: not asserted
 
-## External delivery not established
+No current Actions run, run URL, Docker Hub image digest/tag, or AWS environment has been independently verified here. In particular, do not infer that:
 
-No GitHub Actions run or run log is asserted by this document. The following remain **unverified** unless separately confirmed in the relevant external systems:
+- a main-branch or manually dispatched Actions workflow has completed;
+- the Docker Hub variable/token are configured or valid;
+- application images have been published and are pullable;
+- the pull-only deployment succeeded on GitHub Actions;
+- the smoke test ran remotely or passed;
+- AWS access, OIDC, account permissions, region, or budget are ready.
 
-- Whether the `main`-branch delivery workflow has run, or any manual run completed.
-- Whether repository variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN` are configured and valid.
-- Whether either image was published to Docker Hub, and whether the deployment runner can pull it.
-- Whether the pull-only deployment succeeded on GitHub Actions.
-- Whether the smoke test ran and passed in GitHub Actions.
-- Whether the Docker Hardened Images alternatives have compatible verified tags and pull access. The repository currently uses explicit upstream image tags as fallbacks.
+The workflow listens for pushes to `main` and `workflow_dispatch`; `devops-pipeline` pushes alone do not match the push trigger. Do not dispatch it during planning.
 
-Do not create credentials, Docker Hub repositories, or other external resources as part of documenting this status.
+## Findings to carry forward
 
-## Discovered issue and limitation
+1. **Numbered tags are not guaranteed immutable.** The workflow derives `1.0.N` from `github.run_number`; rerunning that run reuses the number and can push over the same tag. `latest` is mutable too. Deployment selects the numbered tag, but tag immutability and digest pinning are not enforced. This is a future pipeline-hardening item; implementation was not changed here.
+2. **Backend image validation gap.** The committed Dockerfile build was not validated in the prior restricted build-network environment. A temporary runtime-only image demonstrated the JAR/Compose behavior but does not substitute for a build of `backend/Dockerfile`.
+3. **External validation absent.** CI, registry, and remote acceptance state require evidence from GitHub Actions and Docker Hub.
+4. **DHI fallback remains.** Catalog existence is not evidence of compatible tags, access, architecture, or runtime compatibility.
+5. **Host-port access was environment-limited.** Compose-network traffic passed; host loopback requests timed out due the local proxy/network context. Recheck safely on the unrestricted personal machine.
+6. **Personal-machine readiness is not established.** Inspect relevant toolchain, identity, and proxy configuration there without disclosing values or changing settings absent explicit approval.
 
-The README had described numbered image tags as immutable. That is stronger than the implementation guarantees: the image tag is derived from `github.run_number`, and rerunning a workflow run reuses that number and can publish over the same tag. `latest` is also intentionally mutable. Deployment does pin to the numbered tag rather than `latest`, but neither tag immutability nor digest pinning is enforced. This discrepancy is documented here rather than changing the delivery implementation.
+## Recommended next milestone
 
-The local backend Dockerfile build and host-published frontend port were blocked by environment-specific networking, while a Compose-network acceptance test passed using a temporary runtime-only backend image. Do not treat either local limitation as evidence of a GitHub Actions outcome.
+**Milestone 0 — Baseline and repository audit (PARTIAL):** on the personal Ubuntu computer, verify repository ownership, local branch/identity and remote state, inspect toolchains/credentials safely, check whether proxy configuration exists without printing credentials, and run the local test suite. Do not make implementation changes during the audit. Record only actual command evidence. Then plan one next milestone; the roadmap's likely next implementation gap is completing a reproducible build of the committed backend Dockerfile and validating the existing pipeline externally only after its credentials and trigger are explicitly confirmed.
+
+## Milestone update template
+
+Append a dated entry only after executing the milestone checks:
+
+```markdown
+### YYYY-MM-DD — Milestone N: short title
+- **Changes:** paths and behavior changed, or “documentation only”.
+- **Validation:** commands/evidence and PASS/FAIL/BLOCKED/SKIPPED results.
+- **Remaining issues:** evidence-backed gaps.
+- **Next step:** one recommended milestone.
+```

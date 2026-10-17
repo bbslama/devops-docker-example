@@ -28,8 +28,9 @@ The backend is a Spring Web/JPA/Validation API with Flyway migrations and Actuat
 | `deploy/compose.yaml` | Pull-only versioned release deployment |
 | `scripts/smoke-test.sh` | Curl-based deployment acceptance check |
 | `.github/workflows/ci-cd.yml` | Test, publish, temporary deploy and smoke-test pipeline |
-| `docs/` | Architecture, operating instructions, and verified current status |
-| `.github/skills/` | Repository-specific Agent Skills for app and delivery work |
+| `AGENTS.md` | Concise repository-wide Copilot guidance |
+| `docs/` | Project charter, architecture, current state, roadmap, ADRs, security, and runbooks |
+| `.github/skills/` | Focused repository-level Agent Skills |
 
 ## Local development and checks
 
@@ -107,8 +108,8 @@ docker compose --env-file deploy/.env -f compose.yaml down --volumes
 
 The Compose health checks wait for PostgreSQL, the Actuator backend endpoint, and the frontend. Check Docker availability if Testcontainers cannot start PostgreSQL; check Docker Hub access and the required repository variable/secret if publication or pulls fail.
 
-## Deferred
+## Project knowledge and roadmap
 
-AWS, Terraform, persistent cloud deployment, Kubernetes, monitoring, and centralized logging are intentionally out of scope.
+Read the [project charter](docs/project-charter.md), [architecture](docs/architecture.md), [current-state evidence ledger](docs/current-state.md), [roadmap](docs/roadmap.md), [definition of done](docs/definition-of-done.md), [security and identities](docs/security-and-identities.md), [operations runbook](docs/operations-runbook.md), and [future session starter](docs/future-session-starter.md). AWS ECS, Terraform, metrics, and centralized logging are planned future milestones; AWS/EKS is not current implementation. Local Kubernetes is optional and must not block ECS.
 
-For a component and request-flow overview, see [Architecture](docs/architecture.md). For setup, deployment, and cleanup steps, see [Operations](docs/operations.md). For what has and has not been verified at the pushed baseline, see [Current state](docs/current-state.md).
+The architecture decisions are indexed in [docs/decisions](docs/decisions/README.md). Repository Agent Skills live in `.github/skills/`; in Copilot CLI reload with `/skills reload`, list with `/skills list`, and inspect a skill with `/skills info <skill-name>`.

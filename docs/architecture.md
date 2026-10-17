@@ -1,51 +1,93 @@
 # Architecture
 
-This repository packages a small Notes workload as a training example for application tests, container images, and a temporary Compose deployment. It is not a persistent production service.
+This training project keeps the Notes workload small so the delivery lifecycle remains the focus. Current implementation and evidence are in [current state](current-state.md); target choices and sequencing are in the [charter](project-charter.md) and [roadmap](roadmap.md).
 
-## Components and request flow
+## 1. Current local application architecture
 
-```text
-Browser or curl
-      |
-      | HTTP :8080
-      v
-Angular static build served by Nginx
-      |                         \
-      | /api/*                   \ /actuator/*
-      v                            v
-Spring Boot API :8080  <-----------+
-      |
-      | JDBC
-      v
-PostgreSQL :5432
+```mermaid
+flowchart LR
+  User[Browser or curl] -->|HTTP :8080| Nginx[Angular static files + Nginx]
+  Nginx -->|/api/*| API[Spring Boot :8080]
+  Nginx -->|/actuator/*| API
+  API -->|JDBC| DB[(PostgreSQL :5432)]
 ```
 
-- `frontend/` is a standalone Angular app. `NotesApiService` calls relative `/api/notes` URLs so the same build can use the Nginx proxy in local and release Compose.
-- `frontend/nginx.conf` serves the single-page app and proxies `/api/` and `/actuator/` to the Compose service named `backend`.
-- `backend/` is a Spring Boot REST API. The controller delegates to a service and Spring Data JPA repository; Flyway owns schema creation and Hibernate validates the resulting schema.
-- `database` is PostgreSQL with a named Compose volume. The app service waits for the database health check before starting.
-- The release Compose file contains prebuilt image references only. It does not build application images.
+Angular uses relative `/api/notes` paths. Nginx serves the built SPA and proxies API/Actuator routes to `backend`. The API is Spring Boot 4.1.1 / Java 25 with JPA, validation, Actuator health/info, and Flyway migrations. PostgreSQL 17.7 is the persistence store. Both root `compose.yaml` (local build) and `deploy/compose.yaml` (pull-only) define PostgreSQL health and service ordering; release images also have application health checks.
 
-## API contract
+The notes API supports list/get/create/update/delete. Required nonblank title and content have limits of 120 and 10,000 characters. Flyway owns DDL; Hibernate validates it. This is a small training CRUD service, not a production-grade data platform.
 
-The collection resource is `/api/notes`:
+## 2. CI/CD architecture
 
-| Method | Path | Result |
-| --- | --- | --- |
-| `GET` | `/api/notes` | Notes ordered by ID |
-| `GET` | `/api/notes/{id}` | One note; `404` if absent |
-| `POST` | `/api/notes` | Create a note; returns `201` and a `Location` header |
-| `PUT` | `/api/notes/{id}` | Replace a note's title and content; `404` if absent |
-| `DELETE` | `/api/notes/{id}` | Delete a note; returns `204` |
+```mermaid
+flowchart LR
+  Change[Change merged/pushed to main] --> Backend[Backend Maven verification]
+  Change --> Frontend[Frontend lint, tests, build]
+  Backend --> Build[Build both images once]
+  Frontend --> Build
+  Build --> Scan[Trivy image scan]
+  Scan --> Publish[Push shared version + latest aliases]
+  Publish --> Acceptance[Pull-only Compose deployment]
+  Acceptance --> Smoke[curl health and CRUD smoke]
+  Acceptance --> Cleanup[Always clean temporary project]
+```
 
-Both `title` and `content` are required and must not be blank. Their maximum lengths are 120 and 10,000 characters respectively. Invalid request data is handled as a client error. The UI applies the same required and maximum-length constraints.
+`.github/workflows/ci-cd.yml` also supports manual dispatch. Its automatic push trigger is `main` only. Backend and frontend test jobs gate image build/publish. Trivy is configured to fail on fixable critical findings; an unavailable vulnerability database blocks publication. Deployment consumes a version output and does not select `latest`.
 
-Actuator exposes `health` and `info`; the health endpoint is used by the backend health check and proxied through Nginx for acceptance testing.
+The version format is initially `1.0.${{ github.run_number }}`. **The implementation does not guarantee immutability:** Actions re-runs reuse the run number and may republish that version tag. Do not claim immutable artifact promotion; Milestone 6 tracks hardening.
 
-## Build and delivery flow
+## 3. Docker Hub artifact flow
 
-`.github/workflows/ci-cd.yml` is configured for pushes to `main` and manual dispatch. It runs backend and frontend quality jobs in parallel. The image job requires both, builds and scans both images, then publishes them to Docker Hub. A final job pulls the generated version using `deploy/compose.yaml`, waits for healthy services, and runs `scripts/smoke-test.sh`; it then removes the temporary Compose project and database volume.
+Source is the checked-out repository commit. Build output is two application images (frontend and backend), sharing the same version. The workflow scans the images before pushing numbered and `latest` tags to Docker Hub. `latest` is a convenience alias, not a deployment reference. PostgreSQL is an upstream runtime dependency, not an application image published by this pipeline.
 
-The workflow version is `1.0.${{ github.run_number }}`. Deployment uses that exact version rather than `latest`, but rerunning a workflow run reuses its run number; tags are therefore not guaranteed immutable.
+The workflow expects repository variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN`. The current deploy job does not log into the registry, so the versioned images must be anonymously pullable unless that behavior is intentionally changed. No registry contents, credentials, or successful publication are inferred from this architecture description.
 
-See [Current state](current-state.md) for evidence boundaries and known limitations, and [Operations](operations.md) for commands.
+## 4. Temporary deployment acceptance
+
+The deploy job pulls both exact numbered application images using `deploy/compose.yaml`, starts PostgreSQL and the app services, waits for health, runs `scripts/smoke-test.sh`, and runs Compose cleanup even on failure. The smoke test checks frontend availability, backend health through Nginx, then creates, retrieves, and deletes one note.
+
+This is temporary GitHub-runner acceptance and is removed afterward. It is not a persistent environment, rollback-capable service, or proof of cloud deployment.
+
+## 5. Future AWS ECS architecture (PLANNED)
+
+```mermaid
+flowchart LR
+  Internet --> ALB[Application Load Balancer]
+  ALB --> Front[Frontend ECS Fargate service]
+  ALB --> API[Backend ECS Fargate service]
+  API --> RDS[(Private RDS PostgreSQL)]
+  API --> Secrets[Secrets Manager]
+  Front --> CW[CloudWatch logs/metrics]
+  API --> CW
+  GitHub[GitHub Actions OIDC] -->|deploy exact promoted version| ECS[ECS Fargate]
+  Terraform[Terraform] --> Network[VPC, subnets, routes, security groups]
+  Terraform --> ECS
+  Terraform --> ALB
+  Terraform --> RDS
+```
+
+The target is Terraform-managed VPC/public-private networking, security groups, ALB, ECS Fargate services/task definitions, private RDS PostgreSQL, Secrets Manager, CloudWatch logs, and least-privilege IAM. AWS OIDC is preferred for deployment authentication. ECR may be selected for an AWS-local registry or promotion, but Docker Hub remains the initial registry. Whether the image is copied/promoted to ECR or pulled directly must be decided and documented before AWS deployment. No AWS resources or account access are implied by this plan. EKS is not planned.
+
+## 6. Future observability architecture (PLANNED)
+
+```mermaid
+flowchart LR
+  App[Spring Boot Actuator] --> Metrics[Prometheus-compatible scrape]
+  Metrics --> Grafana[Grafana dashboards and alerts]
+  App --> Logs[Structured application logs]
+  Logs --> CW[CloudWatch initial AWS destination]
+  CW -. future alternative .-> Search[OpenSearch or ELK]
+```
+
+First stabilize deployment. Then implement and validate request count, latency, error rate, JVM health, container availability, and database connectivity metrics plus actionable alerts. Centralized logs start with CloudWatch on AWS; evaluate ELK/OpenSearch later against training objectives, retention needs, operating cost, and permissions. Do not operate an observability stack before its prerequisites.
+
+## 7. Trust and credential boundaries
+
+- Personal GitHub CLI/Git operations, work-managed GHE Copilot entitlement, personal Docker Hub, and training-center AWS account are separate identities.
+- Do not copy credentials across identities or store them in the repository. Docker Hub token is a GitHub secret; AWS should use approved temporary identity/OIDC rather than long-lived keys.
+- GitHub Actions, Docker Hub, AWS, and public image registries are distinct trust boundaries. Restrict permissions and OIDC trust to the intended repository and branch/environment.
+- Treat application images as artifacts: test, build, scan, publish once, then deploy an exact version. Current workflow tag immutability is not enforced.
+- The prior development environment had enterprise proxy/firewall constraints. Do not store its settings here or blindly remove proxy configuration on another machine.
+
+## Evidence boundary
+
+This file describes current repository configuration and future target architecture. It does not certify that an Actions run, Docker Hub push/pull, remote acceptance, AWS deployment, metrics collection, alert, or centralized logging has occurred. See [current state](current-state.md).
