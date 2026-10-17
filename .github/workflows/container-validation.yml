@@ -1,0 +1,112 @@
+name: Container build validation
+
+# Builds both committed Dockerfiles from source on a clean GitHub-hosted runner,
+# checks image metadata, runs the pull-only release stack against the locally
+# built images, and runs the curl smoke test. Nothing is published.
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - backend/**
+      - frontend/**
+      - compose.yaml
+      - deploy/compose.yaml
+      - scripts/smoke-test.sh
+      - .github/workflows/container-validation.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-validate:
+    name: Build, inspect, and smoke-test images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOCKERHUB_USERNAME: local
+      APP_VERSION: ci-${{ github.sha }}
+      POSTGRES_DB: notes
+      POSTGRES_USER: notes
+      COMPOSE_PROJECT_NAME: devops-example-build-${{ github.run_id }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set temporary database password
+        run: echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true
+          tags: local/devops-example-backend:${{ env.APP_VERSION }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Build frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          tags: local/devops-example-frontend:${{ env.APP_VERSION }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      - name: Inspect image user, ports, and health checks
+        run: |
+          echo "## Image metadata" >> "$GITHUB_STEP_SUMMARY"
+          for service in backend frontend; do
+            image="local/devops-example-$service:$APP_VERSION"
+            user=$(docker image inspect --format '{{.Config.User}}' "$image")
+            ports=$(docker image inspect --format '{{json .Config.ExposedPorts}}' "$image")
+            health=$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$image")
+            size=$(docker image inspect --format '{{.Size}}' "$image")
+            echo "- \`$service\`: user=\`$user\` ports=\`$ports\` size=$size bytes healthcheck=\`$health\`" >> "$GITHUB_STEP_SUMMARY"
+            case "$user" in
+              ''|root|0|0:*) echo "FAIL: $image runs as root"; exit 1 ;;
+            esac
+            [ "$health" != "null" ] || { echo "FAIL: $image has no HEALTHCHECK"; exit 1; }
+          done
+      - name: Validate Compose files
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f deploy/compose.yaml config --quiet
+          if docker compose -f deploy/compose.yaml config | grep -q 'build:'; then
+            echo "FAIL: release Compose contains a build directive"
+            exit 1
+          fi
+      - name: Start release stack with locally built images
+        run: |
+          docker compose -f deploy/compose.yaml pull database
+          if ! docker compose -f deploy/compose.yaml up -d --pull never --wait --wait-timeout 180; then
+            docker compose -f deploy/compose.yaml ps
+            docker compose -f deploy/compose.yaml logs --no-color
+            exit 1
+          fi
+          docker compose -f deploy/compose.yaml ps
+      - name: Run smoke test
+        run: |
+          if ! scripts/smoke-test.sh; then
+            docker compose -f deploy/compose.yaml logs --no-color
+            exit 1
+          fi
+      - name: Tear down temporary stack
+        if: always()
+        run: docker compose -f deploy/compose.yaml down --volumes --remove-orphans
+      - name: Export images for local validation
+        run: |
+          docker save \
+            "local/devops-example-backend:$APP_VERSION" \
+            "local/devops-example-frontend:$APP_VERSION" | gzip > "$RUNNER_TEMP/images.tar.gz"
+      - name: Upload image archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-images-${{ github.sha }}
+          path: ${{ runner.temp }}/images.tar.gz
+          retention-days: 3
