@@ -82,6 +82,7 @@ jobs:
           fi
       - name: Start release stack with locally built images
         run: |
+          docker compose -f deploy/compose.yaml pull database
           if ! docker compose -f deploy/compose.yaml up -d --pull never --wait --wait-timeout 180; then
             docker compose -f deploy/compose.yaml ps
             docker compose -f deploy/compose.yaml logs --no-color
