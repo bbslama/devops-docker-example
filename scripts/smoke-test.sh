@@ -32,6 +32,11 @@ wait_for() {
 
 wait_for "$BASE_URL/" || fail "frontend did not become available"
 
+page=$(curl --silent --show-error --fail --connect-timeout 3 --max-time 5 "$BASE_URL/") \
+  || fail "frontend index request failed"
+printf '%s' "$page" | grep -F '<app-root' >/dev/null \
+  || fail "frontend did not serve the Angular application"
+
 health=$(curl --silent --show-error --fail --connect-timeout 3 --max-time 5 \
   "$BASE_URL/actuator/health") || fail "backend health endpoint failed through frontend proxy"
 printf '%s' "$health" | grep -F '"status":"UP"' >/dev/null \
@@ -55,4 +60,4 @@ curl --silent --show-error --fail --connect-timeout 3 --max-time 8 \
   || fail "could not delete the smoke-test note"
 NOTE_ID=
 
-printf 'PASS: frontend, proxied backend health, and note create/read/delete\n'
+printf 'PASS: Angular frontend, proxied backend health, and note create/read/delete\n'
