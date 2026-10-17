@@ -4,7 +4,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 
 | # | Milestone | Status |
 | --- | --- | --- |
-| 0 | Baseline and repository audit | PARTIAL |
+| 0 | Baseline and repository audit | COMPLETE (local evidence) |
 | 1 | Minimal application baseline | COMPLETE (local evidence) |
 | 2 | Production-oriented containerization | PARTIAL |
 | 3 | Continuous integration | PARTIAL |
@@ -21,7 +21,7 @@ Statuses are evidence-based; see [current state](current-state.md). Dates/effort
 | 14 | Operational maturity | PLANNED |
 | Optional | Local Kubernetes compatibility | OPTIONAL |
 
-## Milestone 0 — Baseline and repository audit (PARTIAL)
+## Milestone 0 — Baseline and repository audit (COMPLETE locally)
 
 - **Objective / why:** establish the true code, branch, identity, toolchain, validation and remote-service state before work on another machine.
 - **Dependencies:** none.

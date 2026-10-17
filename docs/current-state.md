@@ -60,7 +60,22 @@ The workflow listens for pushes to `main` and `workflow_dispatch`; `devops-pipel
 
 ## Recommended next milestone
 
-**Milestone 0 — Baseline and repository audit (PARTIAL):** on the personal Ubuntu computer, verify repository ownership, local branch/identity and remote state, inspect toolchains/credentials safely, check whether proxy configuration exists without printing credentials, and run the local test suite. Do not make implementation changes during the audit. Record only actual command evidence. Then plan one next milestone; the roadmap's likely next implementation gap is completing a reproducible build of the committed backend Dockerfile and validating the existing pipeline externally only after its credentials and trigger are explicitly confirmed.
+See the latest entry in the milestone log below. (Milestone 0 was completed on the personal Ubuntu machine on 2026-10-17.)
+
+<!-- Historical recommendation retained for context: -->
+**Earlier recommendation — Milestone 0 — Baseline and repository audit:** on the personal Ubuntu computer, verify repository ownership, local branch/identity and remote state, inspect toolchains/credentials safely, check whether proxy configuration exists without printing credentials, and run the local test suite. Do not make implementation changes during the audit. Record only actual command evidence. Then plan one next milestone; the roadmap's likely next implementation gap is completing a reproducible build of the committed backend Dockerfile and validating the existing pipeline externally only after its credentials and trigger are explicitly confirmed.
+
+## Milestone log
+
+### 2026-10-17 — Milestone 0: Baseline and repository audit (personal Ubuntu machine)
+- **Changes:** documentation only.
+- **Repository:** remote `https://github.com/bbslama/devops-docker-example.git`; branch `devops-pipeline` tracking `origin/devops-pipeline` at `05ef1c4`, clean worktree; `main` at `d80f0d3`. Personal `github.com` account `bbslama` has admin permission (`gh api repos/...`). Repository-local Git author is configured.
+- **Toolchain:** PASS — OpenJDK 25.0.4.1, Node v24.16.0, npm 11.17.0, Docker Engine 29.9.1 (usable without sudo), Docker Compose v5.6.0, GitHub CLI authenticated (tokens not displayed), Copilot CLI present. Terraform not installed (not needed before M8).
+- **Proxy presence (values not printed):** shell proxy variables (`HTTP(S)_PROXY`, `NO_PROXY`, `ALL_PROXY`, lowercase variants) and npm `proxy`/`https-proxy` are set; no Git proxy keys; no Maven `settings.xml`. Nothing was changed. npm also warns about an unknown user-level `tokenHelper` key from a work registry config; left untouched.
+- **Backend:** PASS — `./mvnw --batch-mode --no-transfer-progress clean verify`: 4 unit/controller tests + 1 PostgreSQL Testcontainers IT passed, 0 Checkstyle violations, BUILD SUCCESS.
+- **Frontend:** PASS — `npm run quality`: ESLint passed, 2 Vitest tests passed, production build succeeded.
+- **External state:** no Actions runs exist for the repository; no repository variables or secrets are configured (`gh variable list`/`gh secret list` empty), so Docker Hub publication (M4) is BLOCKED until the user configures `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`.
+- **Next step:** Milestone 2 — production-oriented containerization.
 
 ## Milestone update template
 
